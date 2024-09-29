@@ -1,16 +1,18 @@
-# Імпорт бібліотек та модулів
 import http.server
-import socketserver
 import socket
-import threading
+import socketserver
 import json
 import datetime
-from urllib.parse import urlparse, parse_qs
 from pymongo import MongoClient
+from urllib.parse import urlparse, parse_qs
+import threading
 
+# MongoDB client setup
+client = MongoClient('mongodb://mongodb:27017/')
+db = client['messages']
+collection = db['messages']
 
-# Створення базового HTTP-сервера
-# Створення HTTP-сервера
+# HTTP Server for Web Application
 class SimpleHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/':
@@ -29,7 +31,7 @@ class SimpleHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             username = data.get('username')[0]
             message = data.get('message')[0]
 
-            # Відправка даних на Socket-сервер
+            # Send data to the socket server
             send_to_socket_server(username, message)
 
             self.send_response(200)
@@ -40,10 +42,9 @@ class SimpleHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(404)
             self.end_headers()
 
-# Функція відправки даних на Socket-сервер
 def send_to_socket_server(username, message):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect(('localhost', 5000))
+    sock.connect(('localhost', 5000))  # Use 'localhost' or '127.0.0.1' for local testing
     message_data = {
         "username": username,
         "message": message,
@@ -52,7 +53,6 @@ def send_to_socket_server(username, message):
     sock.sendall(json.dumps(message_data).encode('utf-8'))
     sock.close()
 
-# Запуск HTTP-сервера
 def start_http_server():
     PORT = 3000
     handler = SimpleHTTPRequestHandler
@@ -60,18 +60,12 @@ def start_http_server():
     print(f"Serving HTTP on port {PORT}")
     httpd.serve_forever()
 
-
-# Створення Socket-сервера
-# Створення Socket-сервера
+# Socket Server for handling messages
 def start_socket_server():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(('0.0.0.0', 5000))
     sock.listen(5)
     print("Socket server is running on port 5000")
-
-    client = MongoClient('mongodb://localhost:27017/')
-    db = client['messages']
-    collection = db['messages']
 
     while True:
         conn, addr = sock.accept()
@@ -83,15 +77,8 @@ def start_socket_server():
         print(f"Message saved: {message_data}")
         conn.close()
 
-# Запуск Socket-сервера в окремому потоці
-socket_server_thread = threading.Thread(target=start_socket_server)
-socket_server_thread.daemon = True
-socket_server_thread.start()
-
-# Запуск обох серверів
+# Run both servers in separate threads
 if __name__ == "__main__":
-    http_server_thread = threading.Thread(target=start_http_server)
-    http_server_thread.daemon = True
-    http_server_thread.start()
+    threading.Thread(target=start_http_server).start()
+    threading.Thread(target=start_socket_server).start()
 
-    start_socket_server()
